@@ -12,7 +12,7 @@ tested against a local Multipass Ubuntu VM as a stand-in target.
 > laptop's network. Migrating to the router later means swapping Paramiko for
 > Netmiko (`device_type="mikrotik_routeros"`); the FastAPI layer is unchanged.
 
----
+
 
 ## Project structure
 
@@ -23,7 +23,7 @@ ssh-poc/
 └── venv/           # Python virtual environment
 ```
 
----
+
 
 ## Part 1 — Python project setup (on the laptop / client)
 
@@ -34,7 +34,7 @@ source venv/bin/activate
 pip install paramiko fastapi uvicorn
 ```
 
----
+
 
 ## Part 2 — Create the VM target with Multipass
 
@@ -71,7 +71,7 @@ sudo systemctl restart ssh
 sudo sshd -T | grep passwordauthentication
 ```
 
-### GOTCHA: password auth still shows "no"
+### NB: password auth still shows "no"
 
 Multipass cloud images ship a file that forces password auth off, which
 overrides your drop-in. Find and fix it:
@@ -93,7 +93,7 @@ sudo sshd -T | grep passwordauthentication
 exit
 ```
 
----
+
 
 ## Part 3 — Test SSH from the laptop to the VM
 
@@ -105,7 +105,7 @@ ssh ubuntu@10.137.65.110
 exit
 ```
 
----
+
 
 ## Part 4 — The code
 
@@ -209,7 +209,7 @@ def configure(req: CommandRequest):
         raise HTTPException(status_code=500, detail=str(e))
 ```
 
----
+
 
 ## Part 5 — Run and test
 
@@ -270,7 +270,7 @@ curl -X POST http://127.0.0.1:8000/run \
 # stdout should be: Changed via FastAPI
 ```
 
----
+
 
 ## Useful Multipass commands
 
@@ -285,7 +285,7 @@ multipass delete target && multipass purge  # remove entirely
 > The VM's IP can change after stop/start — re-check with `multipass info target`
 > if SSH suddenly fails to connect.
 
----
+
 
 ## Part 6 — Automating it
 
@@ -514,56 +514,3 @@ grep -i cron /var/log/syslog | tail   # did cron try to run the script?
 **5. Turn off the test schedule** once confirmed (so it doesn't run every 2 min
 forever) — `crontab -e`, delete the line or change it to `0 2 * * *`, save.
 
----
-
-## Hardening TODO (before this is more than a PoC)
-
-1. **[DONE] Authenticate the API.** Implemented via an `X-API-Key` header checked
-   against the `API_KEY` env var (see `main.py` / Part 5). Next refinement:
-   support multiple keys or per-key scopes if more than one caller needs access.
-2. **Move credentials server-side.** Load target credentials from environment
-   variables or a `.env` file (`python-dotenv`) instead of passing them in every
-   request body.
-3. **Restrict `/configure`.** Use an allowlist of permitted commands or templated
-   operations rather than free-form command strings.
-4. **Host key verification.** Replace `AutoAddPolicy` with a known_hosts check to
-   prevent man-in-the-middle.
-5. **Structured logging.** Log who ran what against which host — essential once it
-   touches real infrastructure.
-6. **Use HTTPS.** An API key sent over plain HTTP can be sniffed; put this behind
-   TLS (a reverse proxy like Caddy/Nginx, or `uvicorn --ssl-*`) before it leaves
-   localhost.
-
----
-
-## Migrating to the real MikroTik (later)
-
-Once the router is reachable (VPN / jump host / firewall exception):
-
-```bash
-pip install netmiko
-```
-
-Replace the Paramiko logic in `ssh_runner.py` with Netmiko:
-
-```python
-from netmiko import ConnectHandler
-
-def push_config(host, username, password, config_commands):
-    device = {
-        "device_type": "mikrotik_routeros",
-        "host": host, "username": username, "password": password,
-    }
-    conn = ConnectHandler(**device)
-    output = conn.send_config_set(config_commands)  # the "change config" step
-    conn.disconnect()
-    return output
-```
-
-- `send_command()`  → read-only (show/print commands)
-- `send_config_set([...])` → config changes
-- RouterOS uses `/path command` syntax and **auto-saves** (no `write memory`).
-- **Caution:** a wrong interface/firewall/routing line can lock you out of the
-  device mid-change. Read first, change small, have a recovery path.
-
-The FastAPI layer (`main.py`) does not change.
