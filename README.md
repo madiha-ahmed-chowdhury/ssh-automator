@@ -71,7 +71,7 @@ sudo systemctl restart ssh
 sudo sshd -T | grep passwordauthentication
 ```
 
-### NB: password auth still shows "no"
+### Known issue: password auth still shows "no"
 
 Multipass cloud images ship a file that forces password auth off, which
 overrides your drop-in. Find and fix it:
@@ -80,7 +80,7 @@ overrides your drop-in. Find and fix it:
 # Find which file disables it
 sudo grep -ri passwordauthentication /etc/ssh/sshd_config /etc/ssh/sshd_config.d/
 
-# The culprit is usually 60-cloudimg-settings.conf — flip it to yes
+# The offending file is usually 60-cloudimg-settings.conf — set it to yes
 sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' \
     /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
 
@@ -222,7 +222,7 @@ python ssh_runner.py
 
 # Set the API key the server will require (this terminal session)
 export API_KEY="$(openssl rand -hex 32)"
-echo "$API_KEY"          # note it down — needed in the X-API-Key header
+echo "$API_KEY"          # save this value — required in the X-API-Key header
 
 # Start the API server
 uvicorn main:app --reload
@@ -307,7 +307,7 @@ multipass start target 2>/dev/null || true
 # Activate the venv and set the API key
 source venv/bin/activate
 export API_KEY="${API_KEY:-$(openssl rand -hex 32)}"
-echo "API_KEY=$API_KEY"          # note this for your client calls
+echo "API_KEY=$API_KEY"          # copy this value for use in client calls
 
 # Start the API (foreground; Ctrl+C to stop)
 uvicorn main:app --host 127.0.0.1 --port 8000
@@ -429,11 +429,11 @@ Enable and start it:
 ```bash
 sudo systemctl daemon-reload          # re-read service files (run after any edit)
 sudo systemctl enable --now ssh-poc   # start now + on every boot
-sudo systemctl status ssh-poc         # want: active (running)
+sudo systemctl status ssh-poc         # expected: active (running)
 curl http://127.0.0.1:8000/docs       # HTML back = server is live in background
 ```
 
-> **GOTCHA — "address already in use" / service fails instantly.** If you still
+> **Common issue — "address already in use" / service fails instantly.** If you still
 > have a manual `uvicorn` running in a terminal, it holds port 8000 and the
 > systemd service can't bind it (fails in ~400ms). Stop the manual one first:
 > press `Ctrl+C` in its terminal, or `pkill -f "uvicorn main:app"`. Confirm the
@@ -484,7 +484,7 @@ comments. For a quick test, every 2 minutes; switch to nightly once confirmed:
 
 Save (`Ctrl+O`, Enter, `Ctrl+X`).
 
-> **GOTCHA — command merged into the comment line.** When pasting, the command
+> **Common issue — command merged into the comment line.** When pasting, the command
 > can land on the same line as the trailing `# m h dom mon dow command` comment,
 > producing a broken path like `run-automation.sh# Edit this file...`. cron then
 > silently never runs it. Always put the entry on its **own** line at the bottom
